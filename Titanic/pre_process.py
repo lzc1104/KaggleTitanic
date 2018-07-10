@@ -147,7 +147,29 @@ class PassangerGraph:
         rfr_df,_ = self.rfr_missing_data(self.data_train)
         rfr_df = self.set_cabin_type(rfr_df)
         rfr_df.info()
-        print()
+        return rfr_df
+
+    def fatorize_dataframe(self,df):
+        dummies_Cabin = pd.get_dummies(df['Cabin'],prefix='Cabin')
+        dummies_Embarked = pd.get_dummies(df['Embarked'],prefix='Embarked')
+        dummies_Sex = pd.get_dummies(df['Sex'],prefix='Sex')
+        dummies_Pclass = pd.get_dummies(df['Pclass'],prefix='Pclass')
+
+        fdf = pd.concat([
+            self.data_train,
+            dummies_Cabin,
+            dummies_Embarked,
+            dummies_Sex,
+            dummies_Pclass
+        ],axis = 1)
+
+        fdf.drop([
+            'Pclass','Name','Sex','Ticket','Cabin','Embarked'
+        ],axis = 1,inplace = True)
+
+        return fdf
+
+
 
 
 
@@ -155,6 +177,6 @@ class PassangerGraph:
 
 if __name__ == '__main__':
     pg = PassangerGraph()
-    pg.rfr_fit_data_and_type()
+    df = pg.fatorize_dataframe()
 
 
