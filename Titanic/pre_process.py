@@ -9,11 +9,11 @@ from sklearn.ensemble import RandomForestRegressor
 
 
 class PassangerGraph:
-    def __init__(self):
+    def __init__(self,path):
         dir_path = os.path.dirname(__file__)
-        train_csv_path = dir_path + '/data/train.csv'
+        train_csv_path = dir_path + path
         self.train_csv = train_csv_path
-        self.test_csv = dir_path + '/data/test.csv'
+        self.test_csv = dir_path + path
         self.data_train.info()
         print(self.data_train.describe())
 
@@ -120,11 +120,20 @@ class PassangerGraph:
 
         plt.show()
 
-    def rfr_missing_data(self,df):
+    def rfr_missing_data(self,df,rfr=None):
+        age_df = df[['Age','Fare', 'Parch', 'SibSp', 'Pclass']]
+        if rfr is None:
+            rfr = self.build_rfr_model(df)
+        unknowned_age = age_df[age_df.Age.isnull()].as_matrix()
+
+        predictedAge = rfr.predict(unknowned_age[:,1::])
+        df.loc[ (df.Age.isnull()), 'Age' ] = predictedAge
+        return df , rfr
+
+    def build_rfr_model(self,df):
         age_df = df[['Age','Fare', 'Parch', 'SibSp', 'Pclass']]
 
         knowned_age = age_df[age_df.Age.notnull()].as_matrix()
-        unknowned_age = age_df[age_df.Age.isnull()].as_matrix()
 
         y = knowned_age[:,0]
 
@@ -132,11 +141,7 @@ class PassangerGraph:
 
         rfr = RandomForestRegressor(random_state=0,n_estimators=1000,n_jobs=1)
         rfr.fit(X,y)
-
-        predictedAge = rfr.predict(unknowned_age[:,1::])
-        # df.loc[(df.Age.notnull()),'Age'] = predictedAge
-        df.loc[ (df.Age.isnull()), 'Age' ] = predictedAge
-        return df , rfr
+        return rfr
 
     def set_cabin_type(self,df):
         df.loc[(df.Cabin.notnull()),'Cabin'] = 'YES'
@@ -172,31 +177,75 @@ class PassangerGraph:
 
         import sklearn.preprocessing as preprocessing
         scaler = preprocessing.StandardScaler()
-
-        reshape_age = df['Age'].reshape(-1,1)
+        # 版本问题 [1,2,3,4] ,需要变成[[1],[2],[3],[4]]在 scaler.fit() 会报错,需要用reshape升一个维度
+        reshape_age = df['Age'].values.reshape(-1,1)
         age_scale_param = scaler.fit(reshape_age)
         df['Age_scaled'] = scaler.fit_transform(reshape_age,age_scale_param)
 
-        reshape_fare = df['Fare'].reshape(-1,1)
+        reshape_fare = df['Fare'].notnull().values.reshape(-1,1)
+        # 测试集合里面有一个的fare没有数据 2018-7-10
+        print(df['Fare'].isnull().value_counts())
         fare_scale_param = scaler.fit(reshape_fare)
         df['Fare_scale_param'] = scaler.fit_transform(reshape_fare,fare_scale_param)
 
         return df
 
+    def pre_procss_data(self):
+        # 随机森林填充默认值
+        df = self.rfr_fit_data_and_type()
+        # 标准化数据
+        df = self.fatorize_dataframe(df)
+        # 数据归一化
+        df = self.feature_scale(df)
+        return df
+
+    # 逻辑回归模型训练
+    def train_logistic_model(self):
+        from sklearn import linear_model
+
+        train_df = self.pre_procss_data()
+        train_df = train_df.filter(regex='Survived|Age_.*|SibSp|Parch|Fare_.*|Cabin_.*|Embarked_.*|Sex_.*|Pclass_.*')
+        train_np = train_df.as_matrix()
+        y = train_np[:,0]
+
+        X = train_np[:,1:]
+
+        clf = linear_model.LogisticRegression(C=1.0,penalty='l1',tol=1e-6)
+        clf.fit(X,y)
+
+        return clf
 
 
+    def pre_process_test_data(self,df,rfr):
 
+        rfr_df,_ = self.rfr_missing_data(df,rfr)
+        rfr_df = self.set_cabin_type(rfr_df)
+        rfr_df = self.fatorize_dataframe(rfr_df)
+        rfr_df = self.feature_scale(rfr_df)
+        return rfr_df
 
+    def predict_data(self,df,clf):
+        test = df.filter(regex='Survived|Age_.*|SibSp|Parch|Fare_.*|Cabin_.*|Embarked_.*|Sex_.*|Pclass_.*')
+        predictions = clf.predict(test)
+        result = pd.DataFrame({
+            'PassengerId': df['PassengerId'].as_matrix(),
+            'Survived':predictions.astype(np.int32)
+        })
+        print(result)
+        return result
 
 if __name__ == '__main__':
-    pg = PassangerGraph()
-    # 随机森林填充默认值
-    df = pg.rfr_fit_data_and_type()
+    # 训练数据
+    train_pg = PassangerGraph(path='/data/train.csv')
+    test_pg = PassangerGraph(path='/data/test.csv')
 
-    # 标准化数据
-    df = pg.fatorize_dataframe(df)
-    # 数据归一化
-    df = pg.feature_scale(df)
-    print(df)
+    rfr_model = train_pg.build_rfr_model(train_pg.data_train)
+    clf = train_pg.train_logistic_model()
+
+    test_df = test_pg.pre_process_test_data(test_pg.data_train,rfr_model)
+    result = train_pg.predict_data(df=test_df,clf=clf)
+
+
+
 
 
