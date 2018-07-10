@@ -146,7 +146,6 @@ class PassangerGraph:
     def rfr_fit_data_and_type(self):
         rfr_df,_ = self.rfr_missing_data(self.data_train)
         rfr_df = self.set_cabin_type(rfr_df)
-        rfr_df.info()
         return rfr_df
 
     def fatorize_dataframe(self,df):
@@ -156,7 +155,7 @@ class PassangerGraph:
         dummies_Pclass = pd.get_dummies(df['Pclass'],prefix='Pclass')
 
         fdf = pd.concat([
-            self.data_train,
+            df,
             dummies_Cabin,
             dummies_Embarked,
             dummies_Sex,
@@ -169,6 +168,20 @@ class PassangerGraph:
 
         return fdf
 
+    def feature_scale(self,df):
+
+        import sklearn.preprocessing as preprocessing
+        scaler = preprocessing.StandardScaler()
+
+        reshape_age = df['Age'].reshape(-1,1)
+        age_scale_param = scaler.fit(reshape_age)
+        df['Age_scaled'] = scaler.fit_transform(reshape_age,age_scale_param)
+
+        reshape_fare = df['Fare'].reshape(-1,1)
+        fare_scale_param = scaler.fit(reshape_fare)
+        df['Fare_scale_param'] = scaler.fit_transform(reshape_fare,fare_scale_param)
+
+        return df
 
 
 
@@ -177,6 +190,13 @@ class PassangerGraph:
 
 if __name__ == '__main__':
     pg = PassangerGraph()
-    df = pg.fatorize_dataframe()
+    # 随机森林填充默认值
+    df = pg.rfr_fit_data_and_type()
+
+    # 标准化数据
+    df = pg.fatorize_dataframe(df)
+    # 数据归一化
+    df = pg.feature_scale(df)
+    print(df)
 
 
