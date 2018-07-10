@@ -244,7 +244,7 @@ if __name__ == '__main__':
 
     test_df = test_pg.pre_process_test_data(test_pg.data_train,rfr_model)
     result = train_pg.predict_data(df=test_df,clf=clf)
-
+    result.to_csv(os.path.dirname(__file__) + '/data/result_submition.csv',index=False)
 
 
 
